@@ -47,3 +47,75 @@ Fotorgrafi/
 │   │   │   └── utils/           # EXIF injector & Color Space converter
 │   │   └── res/                 # Layouts, themes, & vector assets
 └── build.gradle.kts
+```
+
+---
+
+## Memulai (Getting Started)
+
+### Prasyarat
+* **Android Studio** (disarankan versi Ladybug / Koala atau lebih baru)
+* **Android NDK** & **CMake** (dapat diinstal melalui *SDK Manager > SDK Tools*)
+* Perangkat fisik Android dengan dukungan **Camera2 API Level `FULL` atau `LEVEL_3`** (Emulator tidak disarankan untuk pengujian *hardware ISP*).
+
+### Instalasi & Build
+1. **Clone repositori ini:**
+   ```bash
+   git clone [https://github.com/repositoro/Fotorgrafi.git](https://github.com/repositoro/Fotorgrafi.git)
+   cd Fotorgrafi
+   ```
+
+2. **Buka di Android Studio:**
+   * Pilih **File > Open** dan arahkan ke direktori proyek `Fotorgrafi`.
+   * Tunggu proses *Gradle Sync* dan konfigurasi *CMake* selesai.
+
+3. **Hubungkan perangkat & jalankan:**
+   * Aktifkan **USB Debugging** pada perangkat Android Anda.
+   * Pastikan perangkat terdeteksi via ADB:
+     ```bash
+     adb devices
+     ```
+   * Klik **Run (`Shift + F10`)** untuk memasang aplikasi ke perangkat.
+
+---
+
+## Profil Kalibrasi Media Sosial
+
+| Platform | Target Resolusi | Color Profile | Audio / Video Codec | Optimasi Khusus |
+| :--- | :--- | :--- | :--- | :--- |
+| **Instagram (Reels/Story)** | `1080 x 1920` (9:16) | sRGB / Rec.709 | H.264 High Profile / AAC 48kHz | Bitrate optimal (~15–20 Mbps) untuk menghindari *re-encoding* server |
+| **Instagram (Feed Photo)** | `1080 x 1350` (4:5) | sRGB (8-bit) | JPEG Progressive (95% Quality) | *Sharpening* ringan pasca-downscale agar tekstur tetap tajam |
+| **TikTok** | `1080 x 1920` (9:16) | Rec.709 | HEVC (H.265) / H.264 | Stabilisasi EIS + *frame pacing* konstan 30/60 fps |
+| **WhatsApp Status/Media** | `1080p` / `1600px` | sRGB | H.264 / JPEG | Penyesuaian batas ukuran file agar lolos filter kompresi HD WhatsApp |
+
+---
+
+## Roadmap Pengembangan
+
+- [x] Integrasi dasar CameraX Preview & ImageCapture
+- [x] Setup lingkungan NDK & CMake untuk pemrosesan *native*
+- [ ] Implementasi kontrol manual penuh (Shutter Speed, ISO, Focus Peaking)
+- [ ] Pipeline *Tone Mapping* 10-bit HDR ke 8-bit Rec.709 secara *real-time*
+- [ ] Preset profil *export* langsung ke Instagram, TikTok, dan WhatsApp
+- [ ] Dukungan LUT (`.cube`) kustom berbasis GPU shader
+
+---
+
+## Kontribusi
+
+Kontribusi dari komunitas sangat terbuka! Jika Anda ingin menambahkan profil kalibrasi perangkat baru atau mengoptimalkan *shader* pemrosesan gambar:
+
+1. *Fork* repositori ini.
+2. Buat *branch* fitur baru (`git checkout -b feat/nama-fitur`).
+3. *Commit* perubahan Anda menggunakan format [Conventional Commits](https://www.conventionalcommits.org/) (`git commit -m "feat: tambah profil encoder instagram reels"`).
+4. *Push* ke *branch* tersebut (`git push origin feat/nama-fitur`).
+5. Buat **Pull Request**.
+
+---
+
+## Lisensi
+
+Didistribusikan di bawah Lisensi **MIT**. Lihat file `LICENSE` untuk informasi lebih lanjut.
+
+---
+*Dikembangkan oleh [@repositoro](https://github.com/repositoro)*
