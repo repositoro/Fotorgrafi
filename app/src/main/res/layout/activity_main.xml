@@ -13,41 +13,164 @@
         android:layout_height="0dp"
         app:layout_constraintDimensionRatio="3:4"
         app:layout_constraintTop_toTopOf="parent"
-        app:layout_constraintBottom_toTopOf="@id/btnColorTone"
+        app:layout_constraintBottom_toTopOf="@id/proControlPanel"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintEnd_toEndOf="parent" />
 
-    <com.google.android.material.button.MaterialButton
-        android:id="@+id/btnColorTone"
-        android:layout_width="wrap_content"
+    <!-- Panel Kontrol Manual Pro (EV, ISO, Shutter Speed) -->
+    <LinearLayout
+        android:id="@+id/proControlPanel"
+        android:layout_width="0dp"
         android:layout_height="wrap_content"
-        android:layout_marginBottom="8dp"
-        android:text="TONE: VIVID WARM"
-        android:textColor="#FFD60A"
-        app:backgroundTint="#66000000"
-        app:cornerRadius="20dp"
-        app:layout_constraintBottom_toTopOf="@id/btnSwitchMode"
+        android:orientation="vertical"
+        android:paddingHorizontal="20dp"
+        android:paddingVertical="8dp"
+        android:background="#99000000"
+        app:layout_constraintBottom_toTopOf="@id/topActionRow"
         app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintEnd_toEndOf="parent" />
+        app:layout_constraintEnd_toEndOf="parent">
 
-    <com.google.android.material.button.MaterialButton
-        android:id="@+id/btnSwitchMode"
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center_vertical">
+
+            <TextView
+                android:id="@+id/tvProLabel"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="EV: 0.0  |  ISO: AUTO  |  SS: AUTO"
+                android:textColor="#FFD60A"
+                android:textSize="12sp"
+                android:textStyle="bold" />
+
+            <TextView
+                android:id="@+id/btnResetAuto"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:paddingHorizontal="10dp"
+                android:paddingVertical="4dp"
+                android:text="AUTO"
+                android:textColor="#FFFFFF"
+                android:textSize="11sp"
+                android:background="#33FFFFFF" />
+        </LinearLayout>
+
+        <!-- Slider EV -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center_vertical"
+            android:layout_marginTop="4dp">
+
+            <TextView
+                android:layout_width="42dp"
+                android:layout_height="wrap_content"
+                android:text="EV"
+                android:textColor="#CCCCCC"
+                android:textSize="11sp" />
+
+            <SeekBar
+                android:id="@+id/seekEv"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:progressTint="#FFD60A"
+                android:thumbTint="#FFD60A" />
+        </LinearLayout>
+
+        <!-- Slider ISO -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center_vertical">
+
+            <TextView
+                android:layout_width="42dp"
+                android:layout_height="wrap_content"
+                android:text="ISO"
+                android:textColor="#CCCCCC"
+                android:textSize="11sp" />
+
+            <SeekBar
+                android:id="@+id/seekIso"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:max="100"
+                android:progress="0"
+                android:progressTint="#FFFFFF"
+                android:thumbTint="#FFFFFF" />
+        </LinearLayout>
+
+        <!-- Slider Shutter Speed -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center_vertical">
+
+            <TextView
+                android:layout_width="42dp"
+                android:layout_height="wrap_content"
+                android:text="SS"
+                android:textColor="#CCCCCC"
+                android:textSize="11sp" />
+
+            <SeekBar
+                android:id="@+id/seekShutter"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:max="100"
+                android:progress="50"
+                android:progressTint="#FFFFFF"
+                android:thumbTint="#FFFFFF" />
+        </LinearLayout>
+    </LinearLayout>
+
+    <!-- Baris Tombol Tone & Mode -->
+    <LinearLayout
+        android:id="@+id/topActionRow"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:layout_marginBottom="16dp"
-        android:text="MODE: FOTO"
-        android:textColor="#FFFFFF"
-        app:backgroundTint="#66000000"
-        app:cornerRadius="20dp"
+        android:orientation="horizontal"
+        android:layout_marginBottom="14dp"
         app:layout_constraintBottom_toTopOf="@id/btnCapture"
         app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintEnd_toEndOf="parent" />
+        app:layout_constraintEnd_toEndOf="parent">
+
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/btnColorTone"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginEnd="8dp"
+            android:text="TONE: VIVID WARM"
+            android:textColor="#FFD60A"
+            android:textSize="12sp"
+            app:backgroundTint="#66000000"
+            app:cornerRadius="20dp" />
+
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/btnSwitchMode"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="MODE: FOTO"
+            android:textColor="#FFFFFF"
+            android:textSize="12sp"
+            app:backgroundTint="#66000000"
+            app:cornerRadius="20dp" />
+    </LinearLayout>
 
     <com.google.android.material.floatingactionbutton.FloatingActionButton
         android:id="@+id/btnCapture"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:layout_marginBottom="36dp"
+        android:layout_marginBottom="32dp"
         android:contentDescription="Ambil Foto atau Rekam Video"
         app:backgroundTint="#FFFFFF"
         app:layout_constraintBottom_toBottomOf="parent"

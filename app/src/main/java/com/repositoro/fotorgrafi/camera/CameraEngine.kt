@@ -5,6 +5,7 @@ import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.graphics.Matrix
+import android.hardware.camera2.CameraCharacteristics
 import android.hardware.camera2.CaptureRequest
 import android.opengl.GLSurfaceView
 import android.os.Build
@@ -15,8 +16,12 @@ import android.view.MotionEvent
 import android.view.Surface
 import android.widget.Toast
 import androidx.annotation.OptIn
+import androidx.camera.camera2.interop.Camera2CameraControl
+import androidx.camera.camera2.interop.Camera2CameraInfo
 import androidx.camera.camera2.interop.Camera2Interop
+import androidx.camera.camera2.interop.CaptureRequestOptions
 import androidx.camera.camera2.interop.ExperimentalCamera2Interop
+import androidx.camera.core.Camera
 import androidx.camera.core.CameraControl
 import androidx.camera.core.CameraSelector
 import androidx.camera.core.FocusMeteringAction
@@ -39,12 +44,23 @@ import java.util.Locale
 import java.util.concurrent.Executors
 import java.util.concurrent.TimeUnit
 
+data class SensorCapabilities(
+    val minEv: Int,
+    val maxEv: Int,
+    val evStep: Float,
+    val minIso: Int,
+    val maxIso: Int,
+    val minExposureNs: Long,
+    val maxExposureNs: Long
+)
+
 class CameraEngine(
     private val context: Context,
     private val lifecycleOwner: LifecycleOwner,
     private val glSurfaceView: GLSurfaceView
 ) {
     private var imageCapture: ImageCapture? = null
+    private var activeCamera: Camera? = null
     private var cameraControl: CameraControl? = null
     private var glSurface: Surface? = null
     private var pendingVideoMode: Boolean = false
@@ -54,6 +70,11 @@ class CameraEngine(
 
     val videoEncoder = SocialVideoEncoder(context)
     val renderer: GlCameraRenderer
+
+    var sensorCapabilities: SensorCapabilities? = null
+        private set
+
+    var onCapabilitiesReady: ((SensorCapabilities) -> Unit)? = null
 
     init {
         glSurfaceView.setEGLContextClientVersion(2)
@@ -148,12 +169,76 @@ class CameraEngine(
                     )
                 }
 
+                activeCamera = camera
                 cameraControl = camera.cameraControl
+                readSensorCapabilities(camera)
                 setupTapToFocus()
             } catch (exc: Exception) {
                 Log.e("Fotorgrafi", "Gagal mengikat kamera ke OpenGL", exc)
             }
         }, ContextCompat.getMainExecutor(context))
+    }
+
+    @OptIn(ExperimentalCamera2Interop::class)
+    private fun readSensorCapabilities(camera: Camera) {
+        val exposureState = camera.cameraInfo.exposureState
+        val evRange = exposureState.exposureCompensationRange
+        val evStep = exposureState.exposureCompensationStep.toFloat()
+
+        val cam2Info = Camera2CameraInfo.from(camera.cameraInfo)
+        val isoRange = cam2Info.getCameraCharacteristic(CameraCharacteristics.SENSOR_INFO_SENSITIVITY_RANGE)
+            ?: Range(50, 3200)
+        val expRange = cam2Info.getCameraCharacteristic(CameraCharacteristics.SENSOR_INFO_EXPOSURE_TIME_RANGE)
+            ?: Range(1_000_000L, 250_000_000L)
+
+        // Batasi shutter maksimal di 1/4 detik (250ms) agar handheld tetap tajam tanpa blur ekstrem
+        val clampedMaxExp = minOf(expRange.upper, 250_000_000L)
+
+        val caps = SensorCapabilities(
+            minEv = evRange.lower,
+            maxEv = evRange.upper,
+            evStep = evStep,
+            minIso = isoRange.lower,
+            maxIso = minOf(isoRange.upper, 6400),
+            minExposureNs = maxOf(expRange.lower, 125_000L), // 1/8000s
+            maxExposureNs = clampedMaxExp
+        )
+        sensorCapabilities = caps
+        onCapabilitiesReady?.invoke(caps)
+    }
+
+    @OptIn(ExperimentalCamera2Interop::class)
+    fun setExposureCompensation(index: Int) {
+        val cam = activeCamera ?: return
+        val cam2Control = Camera2CameraControl.from(cam.cameraControl)
+        val resetAeOptions = CaptureRequestOptions.Builder()
+            .setCaptureRequestOption(CaptureRequest.CONTROL_AE_MODE, CaptureRequest.CONTROL_AE_MODE_ON)
+            .build()
+        cam2Control.setCaptureRequestOptions(resetAeOptions)
+        cam.cameraControl.setExposureCompensationIndex(index)
+    }
+
+    @OptIn(ExperimentalCamera2Interop::class)
+    fun setManualIsoAndShutter(iso: Int, exposureTimeNs: Long) {
+        val cam = activeCamera ?: return
+        val cam2Control = Camera2CameraControl.from(cam.cameraControl)
+        val manualOptions = CaptureRequestOptions.Builder()
+            .setCaptureRequestOption(CaptureRequest.CONTROL_AE_MODE, CaptureRequest.CONTROL_AE_MODE_OFF)
+            .setCaptureRequestOption(CaptureRequest.SENSOR_SENSITIVITY, iso)
+            .setCaptureRequestOption(CaptureRequest.SENSOR_EXPOSURE_TIME, exposureTimeNs)
+            .build()
+        cam2Control.setCaptureRequestOptions(manualOptions)
+    }
+
+    @OptIn(ExperimentalCamera2Interop::class)
+    fun resetToAutoExposure() {
+        val cam = activeCamera ?: return
+        val cam2Control = Camera2CameraControl.from(cam.cameraControl)
+        val autoOptions = CaptureRequestOptions.Builder()
+            .setCaptureRequestOption(CaptureRequest.CONTROL_AE_MODE, CaptureRequest.CONTROL_AE_MODE_ON)
+            .build()
+        cam2Control.setCaptureRequestOptions(autoOptions)
+        cam.cameraControl.setExposureCompensationIndex(0)
     }
 
     private fun setupTapToFocus() {
@@ -203,7 +288,6 @@ class CameraEngine(
                             decoded = rotated
                         }
 
-                        // Proses color grading OpenGL pada resolusi asli sensor (4000x3000 px)
                         val graded = offscreenGrader.gradeBitmap(decoded, activeProfile)
                         decoded.recycle()
 
