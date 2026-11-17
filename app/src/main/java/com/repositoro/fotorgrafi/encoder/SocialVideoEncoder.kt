@@ -16,6 +16,7 @@ import androidx.camera.video.Recording
 import androidx.camera.video.VideoCapture
 import androidx.camera.video.VideoRecordEvent
 import androidx.core.content.ContextCompat
+import androidx.camera.core.AspectRatio
 import java.text.SimpleDateFormat
 import java.util.Locale
 
@@ -34,7 +35,7 @@ class SocialVideoEncoder(private val context: Context) {
 
         val recorder = Recorder.Builder()
             .setQualitySelector(qualitySelector)
-            // Kunci bitrate ke 22 Mbps agar detail video tajam & tidak pecah
+            .setAspectRatio(AspectRatio.RATIO_16_9)
             .setTargetVideoEncodingBitRate(22_000_000)
             .build()
 

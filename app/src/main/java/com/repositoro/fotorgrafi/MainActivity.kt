@@ -1,5 +1,6 @@
 package com.repositoro.fotorgrafi
 
+import androidx.constraintlayout.widget.ConstraintLayout
 import android.Manifest
 import android.content.pm.PackageManager
 import android.content.res.ColorStateList
@@ -95,6 +96,12 @@ class MainActivity : AppCompatActivity() {
             btnCapture.backgroundTintList = ColorStateList.valueOf(
                 if (isVideoMode) Color.parseColor("#FF3B30") else Color.WHITE
             )
+
+            // Sesuaikan rasio viewfinder: 3:4 untuk Foto, 9:16 untuk Video vertikal
+            val params = glViewFinder.layoutParams as ConstraintLayout.LayoutParams
+            params.dimensionRatio = if (isVideoMode) "9:16" else "3:4"
+            glViewFinder.layoutParams = params
+
             cameraEngine.startCamera(isVideoMode)
         }
 
