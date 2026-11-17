@@ -1,22 +1,23 @@
 package com.repositoro.fotorgrafi
 
-import androidx.constraintlayout.widget.ConstraintLayout
 import android.Manifest
 import android.content.pm.PackageManager
 import android.content.res.ColorStateList
 import android.graphics.Color
 import android.opengl.GLSurfaceView
 import android.os.Bundle
+import android.view.View
+import android.widget.LinearLayout
 import android.widget.SeekBar
 import android.widget.TextView
 import android.widget.Toast
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
+import androidx.constraintlayout.widget.ConstraintLayout
 import androidx.core.content.ContextCompat
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
-import com.google.android.material.button.MaterialButton
 import com.google.android.material.floatingactionbutton.FloatingActionButton
 import com.repositoro.fotorgrafi.camera.CameraEngine
 import com.repositoro.fotorgrafi.camera.SensorCapabilities
@@ -28,9 +29,12 @@ class MainActivity : AppCompatActivity() {
 
     private lateinit var glViewFinder: GLSurfaceView
     private lateinit var cameraEngine: CameraEngine
-    private lateinit var btnCapture: FloatingActionButton
-    private lateinit var btnSwitchMode: MaterialButton
-    private lateinit var btnColorTone: MaterialButton
+    private lateinit var btnCapture: View
+    private lateinit var btnColorTone: TextView
+    private lateinit var btnTogglePro: TextView
+    private lateinit var tabVideoMode: TextView
+    private lateinit var tabPhotoMode: TextView
+    private lateinit var proControlPanel: LinearLayout
 
     private lateinit var tvProLabel: TextView
     private lateinit var btnResetAuto: TextView
@@ -39,10 +43,11 @@ class MainActivity : AppCompatActivity() {
     private lateinit var seekShutter: SeekBar
 
     private var isVideoMode = false
+    private var isProExpanded = false
     private var isManualMode = false
     private var currentEvText = "0.0"
     private var currentIsoValue = 200
-    private var currentShutterNs = 16_666_666L // ~1/60s
+    private var currentShutterNs = 16_666_666L
 
     private val r9yMnTm4NSzvG9rrwjM2ec8xZgh1cafXH8 =
         registerForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { permissions ->
@@ -66,8 +71,11 @@ class MainActivity : AppCompatActivity() {
 
         glViewFinder = findViewById(R.id.glViewFinder)
         btnCapture = findViewById(R.id.btnCapture)
-        btnSwitchMode = findViewById(R.id.btnSwitchMode)
         btnColorTone = findViewById(R.id.btnColorTone)
+        btnTogglePro = findViewById(R.id.btnTogglePro)
+        tabVideoMode = findViewById(R.id.tabVideoMode)
+        tabPhotoMode = findViewById(R.id.tabPhotoMode)
+        proControlPanel = findViewById(R.id.proControlPanel)
 
         tvProLabel = findViewById(R.id.tvProLabel)
         btnResetAuto = findViewById(R.id.btnResetAuto)
@@ -86,29 +94,25 @@ class MainActivity : AppCompatActivity() {
             btnColorTone.text = newProfile.label
         }
 
-        btnSwitchMode.setOnClickListener {
-            if (cameraEngine.videoEncoder.isRecording) {
-                Toast.makeText(this, "Hentikan rekaman terlebih dahulu", Toast.LENGTH_SHORT).show()
-                return@setOnClickListener
-            }
-            isVideoMode = !isVideoMode
-            btnSwitchMode.text = if (isVideoMode) "MODE: VIDEO (1080p)" else "MODE: FOTO"
-            btnCapture.backgroundTintList = ColorStateList.valueOf(
-                if (isVideoMode) Color.parseColor("#FF3B30") else Color.WHITE
-            )
-
-            // Sesuaikan rasio viewfinder: 3:4 untuk Foto, 9:16 untuk Video vertikal
-            val params = glViewFinder.layoutParams as ConstraintLayout.LayoutParams
-            params.dimensionRatio = if (isVideoMode) "9:16" else "3:4"
-            glViewFinder.layoutParams = params
-
-            cameraEngine.startCamera(isVideoMode)
+        btnTogglePro.setOnClickListener {
+            isProExpanded = !isProExpanded
+            proControlPanel.visibility = if (isProExpanded) View.VISIBLE else View.GONE
+            btnTogglePro.text = if (isProExpanded) "PRO ▼" else "PRO ▲"
+            btnTogglePro.setTextColor(if (isProExpanded) Color.parseColor("#FFD60A") else Color.WHITE)
         }
 
+        tabPhotoMode.setOnClickListener { switchCameraMode(video = false) }
+        tabVideoMode.setOnClickListener { switchCameraMode(video = true) }
+
         btnCapture.setOnClickListener {
+            // Efek feedback tombol shutter ala iPhone
+            btnCapture.animate().scaleX(0.88f).scaleY(0.88f).setDuration(80).withEndAction {
+                btnCapture.animate().scaleX(1f).scaleY(1f).setDuration(80).start()
+            }.start()
+
             if (isVideoMode) {
                 cameraEngine.videoEncoder.toggleRecording { recording ->
-                    btnCapture.backgroundTintList = ColorStateList.valueOf(
+                    btnCapture.background.setTint(
                         if (recording) Color.parseColor("#8E0000") else Color.parseColor("#FF3B30")
                     )
                 }
@@ -134,6 +138,31 @@ class MainActivity : AppCompatActivity() {
                 arrayOf(Manifest.permission.CAMERA, Manifest.permission.RECORD_AUDIO)
             )
         }
+    }
+
+    private fun switchCameraMode(video: Boolean) {
+        if (isVideoMode == video) return
+        if (cameraEngine.videoEncoder.isRecording) {
+            Toast.makeText(this, "Hentikan rekaman terlebih dahulu", Toast.LENGTH_SHORT).show()
+            return
+        }
+
+        isVideoMode = video
+        val iosYellow = Color.parseColor("#FFD60A")
+        val iosRed = Color.parseColor("#FF3B30")
+
+        tabPhotoMode.setTextColor(if (!isVideoMode) iosYellow else Color.WHITE)
+        tabVideoMode.setTextColor(if (isVideoMode) iosYellow else Color.WHITE)
+
+        btnCapture.background.setTint(
+            if (isVideoMode) iosRed else Color.WHITE
+        )
+
+        val params = glViewFinder.layoutParams as ConstraintLayout.LayoutParams
+        params.dimensionRatio = if (isVideoMode) "9:16" else "3:4"
+        glViewFinder.layoutParams = params
+
+        cameraEngine.startCamera(isVideoMode)
     }
 
     private fun setupProControls(caps: SensorCapabilities) {
@@ -172,7 +201,6 @@ class MainActivity : AppCompatActivity() {
             override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) {
                 if (!fromUser) return
                 isManualMode = true
-                // Skala logaritmik agar kontrol shutter speed halus dari 1/8000s hingga 1/4s
                 val ratio = progress / 100.0
                 val minLog = caps.minExposureNs.toDouble()
                 val maxLog = caps.maxExposureNs.toDouble()
