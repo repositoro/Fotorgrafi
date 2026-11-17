@@ -3,6 +3,8 @@ package com.repositoro.fotorgrafi.camera
 import android.content.ContentValues
 import android.content.Context
 import android.graphics.Bitmap
+import android.graphics.BitmapFactory
+import android.graphics.Matrix
 import android.hardware.camera2.CaptureRequest
 import android.opengl.GLSurfaceView
 import android.os.Build
@@ -18,6 +20,9 @@ import androidx.camera.camera2.interop.ExperimentalCamera2Interop
 import androidx.camera.core.CameraControl
 import androidx.camera.core.CameraSelector
 import androidx.camera.core.FocusMeteringAction
+import androidx.camera.core.ImageCapture
+import androidx.camera.core.ImageCaptureException
+import androidx.camera.core.ImageProxy
 import androidx.camera.core.Preview
 import androidx.camera.core.SurfaceOrientedMeteringPointFactory
 import androidx.camera.core.resolutionselector.AspectRatioStrategy
@@ -28,6 +33,7 @@ import androidx.lifecycle.LifecycleOwner
 import com.repositoro.fotorgrafi.encoder.SocialVideoEncoder
 import com.repositoro.fotorgrafi.gl.ColorProfile
 import com.repositoro.fotorgrafi.gl.GlCameraRenderer
+import com.repositoro.fotorgrafi.gl.OffscreenColorGrader
 import java.text.SimpleDateFormat
 import java.util.Locale
 import java.util.concurrent.Executors
@@ -38,10 +44,13 @@ class CameraEngine(
     private val lifecycleOwner: LifecycleOwner,
     private val glSurfaceView: GLSurfaceView
 ) {
+    private var imageCapture: ImageCapture? = null
     private var cameraControl: CameraControl? = null
     private var glSurface: Surface? = null
     private var pendingVideoMode: Boolean = false
     private val glExecutor = Executors.newSingleThreadExecutor()
+    private val photoExecutor = Executors.newSingleThreadExecutor()
+    private val offscreenGrader = OffscreenColorGrader()
 
     val videoEncoder = SocialVideoEncoder(context)
     val renderer: GlCameraRenderer
@@ -95,8 +104,6 @@ class CameraEngine(
 
             if (isVideoMode) {
                 val extender = Camera2Interop.Extender(previewBuilder)
-                // Gunakan 30fps konstan di kondisi indoor/redup agar noise & burik hilang,
-                // atau ubah ke Range(60, 60) khusus di outdoor terang benderang
                 extender.setCaptureRequestOption(
                     CaptureRequest.CONTROL_AE_TARGET_FPS_RANGE,
                     Range(30, 30)
@@ -127,10 +134,17 @@ class CameraEngine(
                         videoCapture
                     )
                 } else {
+                    imageCapture = ImageCapture.Builder()
+                        .setCaptureMode(ImageCapture.CAPTURE_MODE_MAXIMIZE_QUALITY)
+                        .setJpegQuality(98)
+                        .setResolutionSelector(resolutionSelector)
+                        .build()
+
                     cameraProvider.bindToLifecycle(
                         lifecycleOwner,
                         cameraSelector,
-                        preview
+                        preview,
+                        imageCapture
                     )
                 }
 
@@ -164,10 +178,50 @@ class CameraEngine(
     }
 
     fun takePhoto() {
-        renderer.captureGradedFrame { bitmap ->
-            saveBitmapToGallery(bitmap)
-            bitmap.recycle()
-        }
+        val capture = imageCapture ?: return
+        val activeProfile = renderer.currentProfile
+
+        capture.takePicture(
+            photoExecutor,
+            object : ImageCapture.OnImageCapturedCallback() {
+                override fun onCaptureSuccess(image: ImageProxy) {
+                    try {
+                        val buffer = image.planes[0].buffer
+                        val bytes = ByteArray(buffer.remaining())
+                        buffer.get(bytes)
+
+                        val rotation = image.imageInfo.rotationDegrees
+                        image.close()
+
+                        var decoded = BitmapFactory.decodeByteArray(bytes, 0, bytes.size)
+                        if (rotation != 0) {
+                            val matrix = Matrix().apply { postRotate(rotation.toFloat()) }
+                            val rotated = Bitmap.createBitmap(
+                                decoded, 0, 0, decoded.width, decoded.height, matrix, true
+                            )
+                            decoded.recycle()
+                            decoded = rotated
+                        }
+
+                        // Proses color grading OpenGL pada resolusi asli sensor (4000x3000 px)
+                        val graded = offscreenGrader.gradeBitmap(decoded, activeProfile)
+                        decoded.recycle()
+
+                        saveBitmapToGallery(graded)
+                        graded.recycle()
+                    } catch (e: Exception) {
+                        Log.e("Fotorgrafi", "Gagal memproses foto resolusi penuh", e)
+                    }
+                }
+
+                override fun onError(exc: ImageCaptureException) {
+                    Log.e("Fotorgrafi", "Gagal menangkap foto: ${exc.message}", exc)
+                    glSurfaceView.post {
+                        Toast.makeText(context, "Gagal mengambil foto", Toast.LENGTH_SHORT).show()
+                    }
+                }
+            }
+        )
     }
 
     private fun saveBitmapToGallery(bitmap: Bitmap) {
@@ -187,11 +241,14 @@ class CameraEngine(
 
         if (uri != null) {
             resolver.openOutputStream(uri)?.use { out ->
-                // Simpan kualitas 95% agar detail color grading tetap utuh saat upload sosmed
                 bitmap.compress(Bitmap.CompressFormat.JPEG, 95, out)
             }
             glSurfaceView.post {
-                Toast.makeText(context, "Foto ter-grading tersimpan!", Toast.LENGTH_SHORT).show()
+                Toast.makeText(
+                    context,
+                    "Tersimpan (${bitmap.width}x${bitmap.height})",
+                    Toast.LENGTH_SHORT
+                ).show()
             }
         }
     }
